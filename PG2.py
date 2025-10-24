@@ -1,14 +1,9 @@
-# PG2.py
-# Portable Generator Run Analysis Dashboard (Streamlit App)
-
+# PG_Run_Analysis_ST_v7_6.py
 import streamlit as st
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime
 import plotly.express as px
-import numpy as np
-import io
 import os
-
 
 st.set_page_config(page_title="PG Run Analysis", layout="wide")
 st.title("⚡ PG Run Analysis Dashboard v7.6")
@@ -271,5 +266,3 @@ if not st.session_state.all_data.empty:
         "All_Site_KPI_Data.csv",
         "text/csv"
     )
-
-
