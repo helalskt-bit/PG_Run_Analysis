@@ -1,4 +1,5 @@
-# PG_Run_Analysis_ST_v7_6.py
+# PG2.py
+# Portable Generator Run Analysis Dashboard (Streamlit App)
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -266,3 +267,4 @@ if not st.session_state.all_data.empty:
         "All_Site_KPI_Data.csv",
         "text/csv"
     )
+
