@@ -1,5 +1,4 @@
-# PG2.py
-# Portable Generator Run Analysis Dashboard (Streamlit App)
+# streamlit_app.py
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -38,27 +37,30 @@ if 'progress_val' not in st.session_state: st.session_state.progress_val = 0.0
 def fix_datetime(df, sheet_type):
     df = df.copy()
     df.columns = df.columns.str.strip()
-    if sheet_type == 'Down Data':
-        df['Start Time'] = pd.to_datetime(df['Occurred Date'].astype(str) + ' ' + df['Occurred Time'].astype(str), errors='coerce')
-        df['End Time'] = pd.to_datetime(df['Restored Date'].astype(str) + ' ' + df['Restored Time'].astype(str), errors='coerce')
-        df['Duration Hr'] = df['Duration (Min)']/60
-        df['Alarm'] = df['Effect'].apply(lambda x: 'Outage' if x in ['Site Down','Site Down (Fluctuating)'] else None)
-        df['Date'] = pd.to_datetime(df['Restored Date'], errors='coerce').dt.date
-        df['Site ID'] = df['Site Code']
-    elif sheet_type == 'Power Alarms':
-        df['Start Time'] = pd.to_datetime(df['Alarm Raised Date'].astype(str)+' '+df['Alarm Raised Time'].astype(str), errors='coerce')
-        df['End Time'] = pd.to_datetime(df['Cleared At Date'].astype(str)+' '+df['Cleared At Time'].astype(str), errors='coerce')
-        df['Duration Hr'] = df['Duration (Hrs)']
-        df['Alarm'] = df['Alarm Catagorey'].apply(lambda x: 'Power' if x=='M' else None)
-        df['Date'] = pd.to_datetime(df['Alarm Raised Date'], errors='coerce').dt.date
-        df['Site ID'] = df['Site']
-    elif sheet_type == 'Reference':
-        df['Date'] = pd.to_datetime(df['Date'], errors='coerce').dt.date
-        df['Start Time'] = pd.to_datetime(df['Date'].astype(str) + ' ' + df['Start Time'].astype(str), errors='coerce')
-        df['End Time'] = pd.to_datetime(df['Date'].astype(str) + ' ' + df['End Time'].astype(str), errors='coerce')
-        df['Duration Hr'] = df['Duration Hr']
-        df['Alarm'] = 'PG run'
-        df['Site ID'] = df['Site ID']
+    try:
+        if sheet_type == 'Down Data':
+            df['Start Time'] = pd.to_datetime(df['Occurred Date'].astype(str) + ' ' + df['Occurred Time'].astype(str), errors='coerce')
+            df['End Time'] = pd.to_datetime(df['Restored Date'].astype(str) + ' ' + df['Restored Time'].astype(str), errors='coerce')
+            df['Duration Hr'] = df['Duration (Min)']/60
+            df['Alarm'] = df['Effect'].apply(lambda x: 'Outage' if x in ['Site Down','Site Down (Fluctuating)'] else None)
+            df['Date'] = pd.to_datetime(df['Restored Date'], errors='coerce').dt.date
+            df['Site ID'] = df['Site Code']
+        elif sheet_type == 'Power Alarms':
+            df['Start Time'] = pd.to_datetime(df['Alarm Raised Date'].astype(str)+' '+df['Alarm Raised Time'].astype(str), errors='coerce')
+            df['End Time'] = pd.to_datetime(df['Cleared At Date'].astype(str)+' '+df['Cleared At Time'].astype(str), errors='coerce')
+            df['Duration Hr'] = df['Duration (Hrs)']
+            df['Alarm'] = df['Alarm Catagorey'].apply(lambda x: 'Power' if x=='M' else None)
+            df['Date'] = pd.to_datetime(df['Alarm Raised Date'], errors='coerce').dt.date
+            df['Site ID'] = df['Site']
+        elif sheet_type == 'Reference':
+            df['Date'] = pd.to_datetime(df['Date'], errors='coerce').dt.date
+            df['Start Time'] = pd.to_datetime(df['Date'].astype(str) + ' ' + df['Start Time'].astype(str), errors='coerce')
+            df['End Time'] = pd.to_datetime(df['Date'].astype(str) + ' ' + df['End Time'].astype(str), errors='coerce')
+            df['Duration Hr'] = df['Duration Hr']
+            df['Alarm'] = 'PG run'
+            df['Site ID'] = df['Site ID']
+    except Exception as e:
+        st.error(f"Error in fix_datetime for {sheet_type}: {e}")
     df = df[['Date','Site ID','Start Time','End Time','Duration Hr','Alarm']]
     return df
 
@@ -75,61 +77,64 @@ def calculate_kpi(group):
     power = group[group['Alarm']=='Power']
     outage = group[group['Alarm']=='Outage']
     
-    # PG run KPI
-    if not pg.empty:
-        first_pg_start = pg['Start Time'].min()
-        max_pg_end = pg['End Time'].max()
-        res['1st PG run Time'] = round(first_pg_start.hour + first_pg_start.minute/60,2)
-        res['Max/last PG run Start Time'] = round(pg['Start Time'].max().hour + pg['Start Time'].max().minute/60,2)
-        res['Max/Stop PG run Time'] = round(max_pg_end.hour + max_pg_end.minute/60,2)
-        res['Total PG run'] = round(pg['Duration Hr'].sum(),2)
-        res['Max PG run'] = round(pg['Duration Hr'].max(),2)
-        res['Frequency PG run'] = pg.shape[0]
-    else:
-        first_pg_start = None
-        max_pg_end = None
-        res.update({'1st PG run Time':None,'Max/last PG run Start Time':None,'Max/Stop PG run Time':None,
-                    'Total PG run':0,'Max PG run':0,'Frequency PG run':0})
-    
-    # Power KPI
-    res['Total Power alarm'] = round(power['Duration Hr'].sum(),2) if not power.empty else 0
-    res['Max Power alarm'] = round(power['Duration Hr'].max(),2) if not power.empty else 0
-    
-    # Before 1st PG run Power alarm
-    if first_pg_start is not None and not power.empty:
-        candidate_power = power[power['Start Time'] < first_pg_start]
-        if not candidate_power.empty:
-            last_before_pg = candidate_power.loc[candidate_power['Start Time'].idxmax()]
-            res['Before 1st PG run Power alarm'] = round(last_before_pg['Start Time'].hour + last_before_pg['Start Time'].minute/60,2)
+    try:
+        # PG run KPI
+        if not pg.empty:
+            first_pg_start = pg['Start Time'].min()
+            max_pg_end = pg['End Time'].max()
+            res['1st PG run Time'] = round(first_pg_start.hour + first_pg_start.minute/60,2)
+            res['Max/last PG run Start Time'] = round(pg['Start Time'].max().hour + pg['Start Time'].max().minute/60,2)
+            res['Max/Stop PG run Time'] = round(max_pg_end.hour + max_pg_end.minute/60,2)
+            res['Total PG run'] = round(pg['Duration Hr'].sum(),2)
+            res['Max PG run'] = round(pg['Duration Hr'].max(),2)
+            res['Frequency PG run'] = pg.shape[0]
+        else:
+            first_pg_start = None
+            max_pg_end = None
+            res.update({'1st PG run Time':None,'Max/last PG run Start Time':None,'Max/Stop PG run Time':None,
+                        'Total PG run':0,'Max PG run':0,'Frequency PG run':0})
+        
+        # Power KPI
+        res['Total Power alarm'] = round(power['Duration Hr'].sum(),2) if not power.empty else 0
+        res['Max Power alarm'] = round(power['Duration Hr'].max(),2) if not power.empty else 0
+        
+        # Before 1st PG run Power alarm
+        if first_pg_start is not None and not power.empty:
+            candidate_power = power[power['Start Time'] < first_pg_start]
+            if not candidate_power.empty:
+                last_before_pg = candidate_power.loc[candidate_power['Start Time'].idxmax()]
+                res['Before 1st PG run Power alarm'] = round(last_before_pg['Start Time'].hour + last_before_pg['Start Time'].minute/60,2)
+            else:
+                res['Before 1st PG run Power alarm'] = None
         else:
             res['Before 1st PG run Power alarm'] = None
-    else:
-        res['Before 1st PG run Power alarm'] = None
-    
-    # 1st Outage after PG run
-    if first_pg_start is not None and not outage.empty:
-        after_pg_outages = outage[outage['End Time'] > first_pg_start]
-        if not after_pg_outages.empty:
-            res['After PG run Outage End Time'] = round(after_pg_outages['End Time'].min().hour + after_pg_outages['End Time'].min().minute/60,2)
+        
+        # 1st Outage after PG run
+        if first_pg_start is not None and not outage.empty:
+            after_pg_outages = outage[outage['End Time'] > first_pg_start]
+            if not after_pg_outages.empty:
+                res['After PG run Outage End Time'] = round(after_pg_outages['End Time'].min().hour + after_pg_outages['End Time'].min().minute/60,2)
+            else:
+                res['After PG run Outage End Time'] = None
         else:
             res['After PG run Outage End Time'] = None
-    else:
-        res['After PG run Outage End Time'] = None
-    
-    # Outage during PG run
-    if first_pg_start is not None and max_pg_end is not None and not outage.empty:
-        outage_in_pg = outage[(outage['Start Time'] >= first_pg_start) & (outage['End Time'] <= max_pg_end)]
-        res['Outage during PG run'] = 'Yes' if not outage_in_pg.empty else 'No'
-    else:
-        res['Outage during PG run'] = 'No'
-    
-    # Site Up after PG run
-    after_outage_end = res.get('After PG run Outage End Time')
-    if first_pg_start is not None and after_outage_end is not None:
-        diff_hr = after_outage_end - (first_pg_start.hour + first_pg_start.minute/60)
-        res['Site Up after PG run'] = "Site Up by PG run" if diff_hr <= 0.25 else "False PG run & site not up"
-    else:
-        res['Site Up after PG run'] = None
+        
+        # Outage during PG run
+        if first_pg_start is not None and max_pg_end is not None and not outage.empty:
+            outage_in_pg = outage[(outage['Start Time'] >= first_pg_start) & (outage['End Time'] <= max_pg_end)]
+            res['Outage during PG run'] = 'Yes' if not outage_in_pg.empty else 'No'
+        else:
+            res['Outage during PG run'] = 'No'
+        
+        # Site Up after PG run
+        after_outage_end = res.get('After PG run Outage End Time')
+        if first_pg_start is not None and after_outage_end is not None:
+            diff_hr = after_outage_end - (first_pg_start.hour + first_pg_start.minute/60)
+            res['Site Up after PG run'] = "Site Up by PG run" if diff_hr <= 0.25 else "False PG run & site not up"
+        else:
+            res['Site Up after PG run'] = None
+    except Exception as e:
+        st.error(f"Error in calculate_kpi: {e}")
     
     return pd.Series(res)
 
@@ -138,68 +143,72 @@ def calculate_kpi(group):
 # -------------------------------
 if folder_upload and reference_file:
     if st.sidebar.button("Analysis PG run"):
-        st.session_state.progress_val = 0.0
-        progress = st.progress(st.session_state.progress_val)
-        
-        # Step 1: Reference
-        st.info("Step 1: Loading Reference File...")
-        df_ref = pd.read_excel(reference_file)
-        df_ref = fix_datetime(df_ref,'Reference')
-        st.session_state.progress_val = 0.125
-        progress.progress(st.session_state.progress_val)
-        st.success("✅ Reference Loaded")
-        
-        # Step 2: Filter all uploaded files by Reference
-        st.info("Step 2: Processing uploaded files...")
-        ref_sites_dates = df_ref[['Site ID','Date']].drop_duplicates()
-        filtered_data = []
-        total_files = len(folder_upload)
-        
-        for i, uploaded_file in enumerate(folder_upload):
-            name, ext = os.path.splitext(uploaded_file.name)
-            if ext.lower() in ['.xlsx','.xls']:
-                xls = pd.ExcelFile(uploaded_file)
-                for sheet in xls.sheet_names:
-                    if sheet in ['Down Data','Power Alarms']:
-                        df = pd.read_excel(uploaded_file, sheet_name=sheet)
-                        df_sheet = fix_datetime(df, sheet)
-                        df_sheet = df_sheet.merge(ref_sites_dates, on=['Site ID','Date'], how='inner')
-                        filtered_data.append(df_sheet)
-            elif ext.lower() == '.csv':
-                for chunk in pd.read_csv(uploaded_file, chunksize=chunk_size):
-                    chunk = chunk.merge(ref_sites_dates, on=['Site ID','Date'], how='inner')
-                    filtered_data.append(chunk)
-            st.session_state.progress_val = 0.125 + (0.5*i/total_files)
+        try:
+            st.session_state.progress_val = 0.0
+            progress = st.progress(st.session_state.progress_val)
+            
+            # Step 1: Reference
+            st.info("Step 1: Loading Reference File...")
+            df_ref = pd.read_excel(reference_file)
+            df_ref = fix_datetime(df_ref,'Reference')
+            st.session_state.progress_val = 0.125
             progress.progress(st.session_state.progress_val)
-        
-        all_data = pd.concat([df_ref]+filtered_data, ignore_index=True)
-        st.session_state.all_data = all_data
-        st.session_state.progress_val = 0.65
-        progress.progress(st.session_state.progress_val)
-        st.success("✅ All Data Compiled")
-        
-        # Step 3: Calculate KPI
-        st.info("Step 3: Calculating KPI...")
-        pg_kpi = all_data.groupby(['Site ID','Date']).apply(calculate_kpi).reset_index()
-        st.session_state.pg_kpi = pg_kpi
-        st.session_state.progress_val = 0.85
-        progress.progress(st.session_state.progress_val)
-        st.success("✅ KPI Calculated")
-        
-        # Step 4: Outage Table
-        st.info("Step 4: Preparing Outage Table...")
-        st.session_state.outage_table = all_data[all_data['Alarm']=='Outage']
-        st.session_state.progress_val = 0.95
-        progress.progress(st.session_state.progress_val)
-        st.success("✅ Outage Table Ready")
-        
-        # Step 5: Dashboard Ready
-        st.session_state.progress_val = 1.0
-        progress.progress(st.session_state.progress_val)
-        st.success("🎉 Dashboard Ready!")
+            st.success("✅ Reference Loaded")
+            
+            # Step 2: Filter uploaded files
+            st.info("Step 2: Processing uploaded files...")
+            ref_sites_dates = df_ref[['Site ID','Date']].drop_duplicates()
+            filtered_data = []
+            total_files = len(folder_upload)
+            
+            for i, uploaded_file in enumerate(folder_upload):
+                name, ext = os.path.splitext(uploaded_file.name)
+                if ext.lower() in ['.xlsx','.xls']:
+                    xls = pd.ExcelFile(uploaded_file)
+                    for sheet in xls.sheet_names:
+                        if sheet in ['Down Data','Power Alarms']:
+                            df = pd.read_excel(uploaded_file, sheet_name=sheet)
+                            df_sheet = fix_datetime(df, sheet)
+                            df_sheet = df_sheet.merge(ref_sites_dates, on=['Site ID','Date'], how='inner')
+                            filtered_data.append(df_sheet)
+                elif ext.lower() == '.csv':
+                    for chunk in pd.read_csv(uploaded_file, chunksize=chunk_size):
+                        chunk = chunk.merge(ref_sites_dates, on=['Site ID','Date'], how='inner')
+                        filtered_data.append(chunk)
+                st.session_state.progress_val = 0.125 + (0.5*i/total_files)
+                progress.progress(st.session_state.progress_val)
+            
+            all_data = pd.concat([df_ref]+filtered_data, ignore_index=True)
+            st.session_state.all_data = all_data
+            st.session_state.progress_val = 0.65
+            progress.progress(st.session_state.progress_val)
+            st.success("✅ All Data Compiled")
+            
+            # Step 3: KPI
+            st.info("Step 3: Calculating KPI...")
+            pg_kpi = all_data.groupby(['Site ID','Date']).apply(calculate_kpi).reset_index()
+            st.session_state.pg_kpi = pg_kpi
+            st.session_state.progress_val = 0.85
+            progress.progress(st.session_state.progress_val)
+            st.success("✅ KPI Calculated")
+            
+            # Step 4: Outage Table
+            st.info("Step 4: Preparing Outage Table...")
+            st.session_state.outage_table = all_data[all_data['Alarm']=='Outage']
+            st.session_state.progress_val = 0.95
+            progress.progress(st.session_state.progress_val)
+            st.success("✅ Outage Table Ready")
+            
+            # Step 5: Dashboard Ready
+            st.session_state.progress_val = 1.0
+            progress.progress(st.session_state.progress_val)
+            st.success("🎉 Dashboard Ready!")
+            
+        except Exception as e:
+            st.error(f"Error during analysis: {e}")
 
 # -------------------------------
-# 5️⃣ Dashboard
+# 5️⃣ Dashboard Display
 # -------------------------------
 if not st.session_state.all_data.empty:
     st.subheader("Select Site ID and Date")
@@ -267,4 +276,3 @@ if not st.session_state.all_data.empty:
         "All_Site_KPI_Data.csv",
         "text/csv"
     )
-
