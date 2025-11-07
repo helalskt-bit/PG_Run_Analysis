@@ -8,7 +8,7 @@ from datetime import datetime
 import io
 import time
 import gc
-import psutil, os
+import os
 
 # -------------------------------------------------------
 #  Page Setup
@@ -19,7 +19,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# ---------- Subject Banner ----------
+# ---------- Banner ----------
 st.markdown("""
 <div style="
     background: linear-gradient(90deg, #8A2BE2, #DA70D6);
@@ -90,11 +90,6 @@ def reduce_memory(df):
             df[col] = df[col].astype("category")
     return df
 
-def mem_usage(note=""):
-    process = psutil.Process(os.getpid())
-    mem = process.memory_info().rss / 1024 ** 2
-    st.sidebar.write(f"💾 Memory {note}: {mem:.1f} MB")
-
 @st.cache_data(ttl=600, max_entries=5)
 def read_file_bytes(file_bytes, filename, usecols=None):
     """Read uploaded file bytes into DataFrame (cached, optimized)."""
@@ -121,8 +116,10 @@ def render_kpi_card(title, value_display, value_numeric, subtitle, df_for_downlo
             st.markdown(f'<div class="kpi-sub">{subtitle}</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
         if isinstance(value_numeric, (int, float)):
-            try: st.progress(int(round(min(max(value_numeric, 0), 100))))
-            except: pass
+            try:
+                st.progress(int(round(min(max(value_numeric, 0), 100))))
+            except:
+                pass
         if df_for_download is not None:
             csv_bytes = df_for_download.to_csv(index=False).encode()
             st.download_button(f"⬇️ Download {title}", csv_bytes,
@@ -155,7 +152,6 @@ if not main_files or not ref_file:
     st.error("Please upload both Main and Reference files.")
     st.stop()
 
-# Lightweight column selection
 use_cols_main = ["Site", "Alarm_Slogan", "Alarm_Raised_Date", "Duration_hrs"]
 use_cols_ref = ["Site_ID", "Previous_Refuelling_Date", "Present_Refuelling_Date", "Claimed_RH"]
 
@@ -174,7 +170,6 @@ if not df_all_list:
     st.error("No valid data loaded.")
     st.stop()
 
-mem_usage("after read")
 progress_bar.progress(20)
 progress_text.info("Step 2/5 — Cleaning and normalizing data.")
 
@@ -229,7 +224,7 @@ progress_text.info("Step 4/5 — Aggregating and computing KPIs.")
 # -------------------------------------------------------
 merged["mg"] = ""
 merged.loc[merged["alarm_slogan"].str.contains(r"(mains|grid)", case=False, na=False), "mg"] = "M"
-merged.loc[merged["alarm_slogan"].str.contains(r"(genset|generator|dg\b)", case=False, na=False), "mg"] = "G"
+merged.loc[merged["alarm_slogan"].str.contains(r"(genset|generator|dg\\b)", case=False, na=False), "mg"] = "G"
 
 agg = merged.groupby(["__site_key__", "mg"])["duration_hrs"].sum().unstack(fill_value=0)
 agg.rename(columns={"G":"genset_rh","M":"mains_failed_hr"}, inplace=True)
@@ -266,8 +261,6 @@ false_alarm_trigger_pct = round((false_alarm_trigger_count/total_sites)*100,2)
 
 progress_bar.progress(100)
 progress_text.success("All steps completed ✅")
-
-mem_usage("final")
 
 # -------------------------------------------------------
 # Tabs: Raw / Summary / KPI
